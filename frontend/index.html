@@ -191,7 +191,13 @@
                     modalText.textContent = JSON.stringify(workoutData, null, 2);
 
                     // Zeige eine Erfolgsmeldung mit dem erkannten Workout-Typ an
-                    const successMessage = `Analyse erfolgreich! Typ: ${workoutData.workoutType}`;
+                    let successMessage = `Analyse erfolgreich! Typ: ${workoutData.workoutType}`;
+                    
+                    // Füge den Google Sheets-Status hinzu, falls vorhanden
+                    if (workoutData.sheets_status) {
+                        successMessage += `\n${workoutData.sheets_status}`;
+                    }
+
                     showResult(successMessage, 'success');
                     
                     openModal(); // Öffne das Modal mit den formatierten Daten

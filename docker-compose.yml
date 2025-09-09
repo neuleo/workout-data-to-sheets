@@ -7,6 +7,8 @@ services:
       - ./service-account.json:/app/service-account.json:ro
     env_file:
       - ./.env
+    environment:
+      - PYTHONUNBUFFERED=1
   frontend:
     build: ./frontend
     ports:
