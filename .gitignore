@@ -1,0 +1,12 @@
+# Environment variables and secrets
+.env
+service-account.json
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*~.py
+
+# Docker - local builds and data
+.dockerignore

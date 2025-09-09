@@ -1,70 +1,138 @@
-Phase 1: Projektstruktur und Docker Compose-Einrichtung (Dauer: ~1 Tag)
+# Projektplan: Workout-Daten zu Google Sheets
 
-    Verzeichnisstruktur anlegen: Erstelle die Projektordnerstruktur, die später deine Services enthalten wird.
+## Phase 1: Projektstruktur und Docker Compose-Einrichtung (Dauer: ~1 Tag)
 
+**Ziel:** Eine solide Basis für die Entwicklung schaffen, indem die Verzeichnisstruktur und die Docker-Compose-Konfiguration eingerichtet werden.
+
+1.  **Verzeichnisstruktur anlegen:**
+    ```
     samsung-health-data-extractor/
     ├── backend/
+    │   ├── app.py
+    │   ├── Dockerfile
+    │   └── requirements.txt
     ├── frontend/
-    └── docker-compose.yml
+    │   ├── index.html
+    │   └── Dockerfile
+    ├── docker-compose.yml
+    └── service-account.json
+    ```
 
-    docker-compose.yml erstellen: Lege die Hauptkonfigurationsdatei an, die deine Services definiert. Zunächst kannst du sie mit Platzhaltern erstellen, die du später ausfüllst. Dies hilft dir, die Gesamtarchitektur im Blick zu behalten.
+2.  **`docker-compose.yml` erstellen:**
+    *   Definiere zwei Services: `backend` und `frontend`.
+    *   Lege die Ports fest:
+        *   `frontend`: `8080:80` (Host:Container)
+        *   `backend`: `5000:5000`
+    *   Binde das `backend`-Verzeichnis als Build-Kontext für den `backend`-Service ein.
+    *   Binde das `frontend`-Verzeichnis als Build-Kontext für den `frontend`-Service ein.
 
-        Definiere zwei Services: backend und frontend.
+3.  **API-Schlüssel vorbereiten:**
+    *   Lege die `service-account.json`-Datei sicher im Hauptverzeichnis ab. Diese Datei wird später als Volume in den Backend-Container eingebunden, um die Authentifizierung gegenüber der Google Sheets API zu ermöglichen.
 
-        Lege die Ports fest, die die Services exponieren sollen. Zum Beispiel: Das Frontend läuft auf Port 80 und das Backend auf Port 5000.
+## Phase 2: Backend-Entwicklung im Container (Dauer: ~4 Tage)
 
-    API-Schlüssel vorbereiten: Lege deine service-account.json-Datei sicher im Hauptverzeichnis des Projekts ab. Du wirst sie später als Volume in den Backend-Container einbinden.
+**Ziel:** Einen robusten Backend-Service entwickeln, der die Workout-Daten empfängt, verarbeitet und in Google Sheets einträgt.
 
-Phase 2: Backend-Entwicklung im Container (Dauer: ~4 Tage)
+1.  **`requirements.txt` erstellen:**
+    ```
+    Flask==2.2.2
+    gspread==5.7.2
+    oauth2client==4.1.3
+    pandas==1.5.3
+    ```
 
-    backend Verzeichnis: In diesem Ordner erstellst du deine Python-App.
+2.  **`Dockerfile` für das Backend:**
+    ```Dockerfile
+    FROM python:3.9-slim
 
-    requirements.txt: Liste alle Python-Bibliotheken (Flask, google-api-python-client, etc.) auf.
+    WORKDIR /app
 
-    Dockerfile: Erstelle die Anweisungen für den Backend-Container. Dies ist der Bauplan. Du kannst von einem offiziellen Python-Image ausgehen.
+    COPY requirements.txt .
 
-        FROM python:3.9-slim
+    RUN pip install --no-cache-dir -r requirements.txt
 
-        WORKDIR /app
+    COPY . .
 
-        COPY requirements.txt .
+    CMD ["python", "app.py"]
+    ```
 
-        RUN pip install --no-cache-dir -r requirements.txt
+3.  **Logik in `app.py` implementieren:**
+    *   **Flask-Server aufsetzen:** Erstelle eine einfache Flask-Anwendung.
+    *   **API-Endpunkt `/upload`:**
+        *   Implementiere eine `POST`-Route, die eine CSV-Datei entgegennimmt.
+        *   Lese die CSV-Daten mit `pandas`.
+        *   Verarbeite die Daten: Bereinige Spalten, formatiere Daten und berechne bei Bedarf zusätzliche Metriken.
+    *   **Google Sheets-Integration:**
+        *   Authentifiziere dich mit `gspread` und den Anmeldeinformationen aus der `service-account.json`.
+        *   Öffne das Ziel-Spreadsheet und das entsprechende Arbeitsblatt.
+        *   Schreibe die verarbeiteten Daten in das Arbeitsblatt.
+    *   **Fehlerbehandlung:** Implementiere eine robuste Fehlerbehandlung für den Fall, dass die Datei nicht korrekt formatiert ist oder die Google API nicht erreichbar ist.
 
-        COPY . .
+## Phase 3: Frontend-Entwicklung im Container (Dauer: ~3 Tage)
 
-        CMD ["python", "app.py"] (oder der Befehl zum Starten deines Servers)
 
-    Logik implementieren: Schreibe deinen Python-Code wie im vorherigen Plan beschrieben. Dank Docker kannst du sofort testen, ob die Abhängigkeiten korrekt geladen werden, indem du den Container baust.
+**Ziel:** Eine benutzerfreundliche Oberfläche schaffen, über die der Benutzer seine Workout-Daten hochladen kann.
 
-Phase 3: Frontend-Entwicklung im Container (Dauer: ~3 Tage)
+1.  **`Dockerfile` für das Frontend:**
+    ```Dockerfile
+    FROM nginx:stable-alpine
 
-    frontend Verzeichnis: Hier kommen dein HTML, CSS und JavaScript hin.
+    COPY ./ /usr/share/nginx/html
 
-    Dockerfile: Erstelle einen Docker-Container, der nur einen Webserver bereitstellt. Das ist oft einfacher, als einen eigenen Python-Server zu bauen, nur um statische Dateien zu servieren. Ein schlankes Nginx-Image ist dafür perfekt.
+    EXPOSE 80
+    ```
 
-        FROM nginx:stable-alpine
+2.  **`index.html` erstellen:**
+    *   Erstelle ein einfaches HTML-Formular mit einem Datei-Upload-Feld (`<input type="file">`) und einem Senden-Button.
+    *   Stelle sicher, dass das Formular nur `.csv`-Dateien akzeptiert.
 
-        COPY ./ /usr/share/nginx/html
+3.  **JavaScript für den Upload:**
+    *   Schreibe eine JavaScript-Funktion, die die ausgewählte Datei erfasst.
+    *   Verwende die `fetch`-API, um die Datei an den Backend-Endpunkt `http://localhost:5000/upload` zu senden.
+    *   Zeige dem Benutzer eine Erfolgs- oder Fehlermeldung an, je nach Antwort des Backends.
+    *   Da beide Services im selben Docker-Netzwerk laufen, kann das Frontend den Backend-Service über seinen Namen (`backend`) ansprechen: `fetch('http://backend:5000/upload', ...)`
 
-        EXPOSE 80
+## Phase 4: Test und Deployment (Dauer: ~1 Tag)
 
-    Frontend-Logik: Schreibe den Code, der die Dateien an den Backend-Container sendet. Da beide Services im selben Docker-Netzwerk laufen, kannst du den Backend-Service über seinen Namen (backend) ansprechen. Beispielsweise: fetch('http://backend:5000/upload', ...)
+**Ziel:** Die Anwendung gründlich testen und für das Deployment vorbereiten.
 
-Phase 4: Test und Deployment (Dauer: ~1 Tag)
+1.  **`docker-compose.yml` finalisieren:**
+    ```yaml
+    version: '3.8'
+    services:
+      backend:
+        build: ./backend
+        ports:
+          - "5000:5000"
+        volumes:
+          - ./service-account.json:/app/service-account.json:ro
+      frontend:
+        build: ./frontend
+        ports:
+          - "8080:80"
+        depends_on:
+          - backend
+    ```
 
-    docker-compose.yml finalisieren: Fülle die Konfigurationen für die Services aus.
+2.  **Lokales Deployment:**
+    *   Starte die gesamte Anwendung mit `docker-compose up --build`.
+    *   Docker Compose baut die Images und startet die Container in der richtigen Reihenfolge.
 
-        Verweise im backend-Service auf den Build-Kontext (build: ./backend).
+3.  **Fehlerbehebung:**
+    *   Überprüfe die Logs beider Container mit `docker-compose logs -f backend` und `docker-compose logs -f frontend`.
+    *   Behebe eventuelle Fehler in der Kommunikation oder bei den API-Aufrufen.
 
-        Definiere das Volume für deinen API-Schlüssel: - ./service-account.json:/app/service-account.json:ro. Das ro am Ende bedeutet, dass der Container nur Lesezugriff hat, was die Sicherheit erhöht.
+4.  **Deployment auf einem Server:**
+    *   Klone das GitHub-Repository auf deinen Server.
+    *   Führe `docker-compose up -d` aus, um die Anwendung im Hintergrund zu starten.
 
-        Setze die Ports und Abhängigkeiten (depends_on: - backend für das Frontend).
+## Phase 5: Wartung und zukünftige Features
 
-    Erstes lokales Deployment: Starte die gesamte Anwendung mit docker-compose up. Docker Compose baut die Images und startet die Container in der richtigen Reihenfolge.
+**Ziel:** Die Anwendung langfristig pflegen und erweitern.
 
-    Fehlerbehebung: Überprüfe die Logs beider Container, um Fehler in der Kommunikation oder den API-Aufrufen zu finden.
-
-    Deployment auf einem Server: Der letzte Schritt ist so einfach wie das Klonen des GitHub-Repositorys und das Ausführen von docker-compose up auf deinem Server.
-
-Durch die Arbeit mit Docker Compose von Anfang an stellst du sicher, dass deine Entwicklungsumgebung der Produktionsumgebung gleicht. Das vermeidet Probleme, die oft bei der Umstellung von lokaler Entwicklung auf Deployment auftreten.
+*   **Regelmäßige Updates:** Halte die Abhängigkeiten (Python-Bibliotheken, Docker-Images) auf dem neuesten Stand.
+*   **Monitoring:** Überwache die Anwendung auf Fehler und Performance-Probleme.
+*   **Zukünftige Features:**
+    *   **Datenvisualisierung:** Füge Diagramme und Grafiken hinzu, um die Workout-Daten direkt im Frontend zu visualisieren.
+    *   **Benutzer-Feedback:** Implementiere eine Möglichkeit für Benutzer, Feedback zu geben oder Fehler zu melden.
+    *   **Unterstützung für weitere Datenquellen:** Erweitere die Anwendung, um Daten aus anderen Fitness-Apps oder Geräten zu importieren.

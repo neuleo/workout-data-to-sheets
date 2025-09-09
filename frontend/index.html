@@ -1,12 +1,211 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workout Data Uploader</title>
+    <title>Workout-Daten-Uploader</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6d28d9;
+            --background-color: #f3f4f6;
+            --card-background: #ffffff;
+            --text-color: #111827;
+            --subtle-text-color: #6b7280;
+            --border-color: #e5e7eb;
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container { width: 100%; max-width: 450px; padding: 2rem; }
+        h1 { font-size: 1.875rem; font-weight: 600; text-align: center; margin-bottom: 2rem; }
+        .card { background-color: var(--card-background); border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 2rem; }
+        #upload-area { border: 2px dashed var(--border-color); border-radius: 0.5rem; padding: 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background-color 0.2s; }
+        #upload-area.drag-over { border-color: var(--primary-color); background-color: #f0eaff; }
+        #upload-area p { margin: 0; font-weight: 500; color: var(--subtle-text-color); }
+        #upload-area .icon { font-size: 2.5rem; color: var(--primary-color); margin-bottom: 1rem; }
+        #file-input { display: none; }
+        #file-name { margin-top: 1rem; font-weight: 500; text-align: center; }
+        button { width: 100%; padding: 0.875rem 1.5rem; background-color: var(--primary-color); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-size: 1rem; font-weight: 500; margin-top: 1.5rem; transition: background-color 0.2s; display: none; }
+        button:hover { background-color: #5b21b6; }
+        #result { margin-top: 1.5rem; padding: 0.75rem 1rem; border-radius: 0.5rem; text-align: center; font-weight: 500; display: none; }
+        .success { background-color: var(--success-bg); color: var(--success-text); }
+        .error { background-color: var(--error-bg); color: var(--error-text); }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none; /* Hidden by default */
+            position: fixed; 
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+        .modal-header h2 { margin: 0; font-size: 1.25rem; }
+        .modal-close {
+            color: var(--subtle-text-color);
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-body {
+            overflow-y: auto; /* Scrollable content */
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+    </style>
 </head>
 <body>
-    <h1>Workout Data Uploader</h1>
-    <p>Frontend is working!</p>
+
+    <div class="container">
+        <h1>Bild-Upload</h1>
+        <div class="card">
+            <form id="upload-form">
+                <div id="upload-area">
+                    <input type="file" id="file-input" name="files" accept="image/*" multiple>
+                    <div class="icon">&#128443;</div>
+                    <p>Bild hierher ziehen oder klicken</p>
+                </div>
+                <div id="file-name"></div>
+                <button type="submit" id="submit-button">Hochladen</button>
+            </form>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <!-- Modal Structure -->
+    <div id="response-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Analyse-Ergebnis</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div id="modal-text" class="modal-body">
+                <!-- Gemini response will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDiv = document.getElementById('file-name');
+        const submitButton = document.getElementById('submit-button');
+        const resultDiv = document.getElementById('result');
+        const form = document.getElementById('upload-form');
+        
+        // Modal elements
+        const modal = document.getElementById('response-modal');
+        const modalText = document.getElementById('modal-text');
+        const closeModalBtn = document.querySelector('.modal-close');
+
+        // --- Modal Functions ---
+        function openModal() { modal.style.display = 'flex'; }
+        function closeModal() { modal.style.display = 'none'; }
+
+        // --- Event Listeners ---
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+        fileInput.addEventListener('change', handleFileSelect);
+        closeModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) { closeModal(); } }); // Click outside to close
+
+        function handleFileSelect() {
+            const files = fileInput.files;
+            if (files.length > 0) {
+                fileNameDiv.textContent = Array.from(files).map(file => file.name).join(', ');
+                submitButton.style.display = 'block';
+                resultDiv.style.display = 'none';
+                resultDiv.className = '';
+            } else {
+                fileNameDiv.textContent = '';
+                submitButton.style.display = 'none';
+            }
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showResult('Bitte wählen Sie eine oder mehrere Bilddateien aus.', 'error');
+                return;
+            }
+
+            const uploadMessage = fileInput.files.length > 1 
+                ? `Lade ${fileInput.files.length} Bilder hoch und verarbeite sie...` 
+                : 'Lade Bild hoch und verarbeite es...';
+            showResult(uploadMessage, '');
+            submitButton.disabled = true;
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (response.ok) {
+                    // Populate modal with the full text and show a simple success message
+                    modalText.textContent = result.full_text;
+                    showResult(result.message, 'success');
+                    openModal(); // Open the modal with the result
+                } else {
+                    showResult(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch-Fehler:', error);
+                showResult('Ein Netzwerkfehler ist aufgetreten. Backend erreichbar?', 'error');
+            }
+            finally {
+                submitButton.disabled = false;
+            }
+        });
+
+        function showResult(message, type) {
+            resultDiv.textContent = message;
+            resultDiv.className = type;
+            resultDiv.style.display = 'block';
+        }
+    </script>
+
 </body>
 </html>
