@@ -77,33 +77,135 @@ def upload_image():
 
     try:
         prompt = """
-Analysiere die folgenden Bilder von einem Fitness-Tracker, die alle zum selben Workout gehören.
-Fasse die Daten aus ALLEN Bildern zu einem einzigen, zusammenhängenden Bericht zusammen.
-Erstelle eine übersichtliche Liste aller relevanten Datenpunkte (wie z.B. Dauer, Kalorien, Herzfrequenzzonen, Distanz, etc.).
-Wenn Daten auf mehreren Bildern erscheinen (z.B. die Gesamtdauer), präsentiere sie nur einmal im finalen Bericht.
-Ziel ist es, eine vollständige Zusammenfassung des gesamten Workouts zu erstellen, als ob alle Daten von einem einzigen Bildschirm kämen.
+Du bist ein Experte für die Analyse von Sportdaten. Deine Aufgabe ist es, die bereitgestellten Bilder von einer Fitnessuhr zu analysieren, den Workout-Typ zu identifizieren und alle Daten in ein strukturiertes JSON-Format zu extrahieren.
+
+1.  **Workout-Typ identifizieren:** Bestimme zuerst, welcher der folgenden drei Workout-Typen dargestellt wird: 'Krafttraining', 'Laufen' oder 'Schwimmen'.
+
+2.  **Daten extrahieren und JSON erstellen:** Fülle basierend auf dem identifizierten Typ die entsprechende JSON-Struktur aus.
+
+**ANTWORTE AUSSCHLIESSLICH MIT DEM REINEN JSON-OBJEKT.** Füge keine Markdown-Formatierung (wie ```json ... ```) oder anderen erklärenden Text hinzu.
+
+---
+**JSON-Strukturen je nach Workout-Typ:**
+
+**1. Wenn der Typ 'Krafttraining' ist:**
+```json
+{
+  "workoutType": "Krafttraining",
+  "summary": {
+    "date": "YYYY-MM-DD oder null",
+    "totalTime": "HH:MM:SS",
+    "totalCalories": 216,
+    "avgHeartRate": 110,
+    "maxHeartRate": 139,
+    "device": "Galaxy Watch 5 Pro oder null"
+  },
+  "details": {
+    "totalExercises": 3,
+    "exercises": [
+      {
+        "name": "Name der Übung",
+        "time": "HH:MM:SS",
+        "reps": 200,
+        "sets": 4,
+        "calories": 32,
+        "avgHeartRate": 123,
+        "maxHeartRate": 139
+      }
+    ],
+    "pauses": [
+      {
+        "duration": "HH:MM:SS",
+        "from": "Workout X",
+        "to": "Workout Y"
+      }
+    ]
+  }
+}
+```
+
+**2. Wenn der Typ 'Laufen' ist:**
+```json
+{
+  "workoutType": "Laufen",
+  "summary": {
+    "date": "YYYY-MM-DD oder null",
+    "totalTime": "HH:MM:SS",
+    "totalCalories": 286,
+    "avgHeartRate": 147,
+    "maxHeartRate": 177,
+    "device": "Gerätename oder null"
+  },
+  "details": {
+    "totalDistance": 3.33,
+    "estimatedFluidLoss": 409,
+    "intervals": [
+      {"interval": "Nummer/Name", "type": "Workout/Erholung/Aufwärmen", "duration": "HH:MM:SS", "distance": 0.26, "avgHeartRate": 72}
+    ],
+    "heartRateZones": [
+      {"zone": "Zonen-Name", "range": "BPM-Bereich"}
+    ],
+    "weather": {
+      "temperature": 19.0
+    }
+  }
+}
+```
+
+**3. Wenn der Typ 'Schwimmen' ist:**
+```json
+{
+  "workoutType": "Schwimmen",
+  "summary": {
+    "date": "YYYY-MM-DD oder null",
+    "totalTime": "HH:MM:SS",
+    "totalCalories": 301,
+    "avgHeartRate": 133,
+    "maxHeartRate": 148,
+    "device": "Galaxy Watch 5 Pro oder null"
+  },
+  "details": {
+    "activity": "Brustschwimmen",
+    "totalDistance": 800,
+    "avgPace": "MM'SS"/100m",
+    "totalStrokes": 70,
+    "swolf": 70,
+    "laps": [],
+    "heartRateZones": [
+        {"zone": "Zonen-Name", "range": "BPM-Bereich", "timePercentage": 79.4}
+    ]
+  }
+}
+```
+---
+Analysiere nun die folgenden Bilder und gib das entsprechende JSON zurück.
 """
         
         print(f"--> [LOG] Sende Anfrage an die Gemini API für die Analyse von {len(images)} Bildern...")
         
-        # Create the content list for the Gemini API
         content = [prompt]
         content.extend(images)
         
         response = gemini_model.generate_content(content)
         
-        print("--- DETAILLIERTE BILDANALYSE (ZUSAMMENFASSUNG) ---")
+        print("--- ROH-ANTWORT VON GEMINI API ---")
         print(response.text)
-        print("-------------------------------------------------")
+        print("----------------------------------")
 
-        # Erfolgsmeldung mit dem Analyse-Text zurückgeben
-        return jsonify({
-            "message": f"Analyse von {len(images)} Bildern abgeschlossen.",
-            "full_text": response.text
-        }), 200
+        # Versuche, die Textantwort als JSON zu parsen
+        try:
+            # Entferne mögliche Markdown-Formatierungen
+            cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
+            json_data = json.loads(cleaned_text)
+            print("--> [LOG] JSON-Antwort erfolgreich geparst.")
+            return jsonify(json_data), 200
+        except json.JSONDecodeError as e:
+            print(f"--> [LOG] FEHLER beim Parsen der JSON-Antwort: {e}")
+            print(f"--> [LOG] Nicht-JSON-Antwort war: {response.text}")
+            return jsonify({"error": "Die Antwort der KI war kein gültiges JSON.", "raw_response": response.text}), 500
 
     except Exception as e:
-        print(f"--> [LOG] FEHLER bei der Bildverarbeitung oder beim Upload: {e}")
+        print(f"--> [LOG] FEHLER bei der Bildverarbeitung oder API-Anfrage: {e}")
         return jsonify({"error": f"Ein interner Fehler ist aufgetreten: {e}"}), 500
 
 if __name__ == '__main__':

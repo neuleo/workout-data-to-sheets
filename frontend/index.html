@@ -184,10 +184,17 @@
                 const response = await fetch('/api/upload', { method: 'POST', body: formData });
                 const result = await response.json();
                 if (response.ok) {
-                    // Populate modal with the full text and show a simple success message
-                    modalText.textContent = result.full_text;
-                    showResult(result.message, 'success');
-                    openModal(); // Open the modal with the result
+                    // Die Antwort ist das strukturierte JSON-Objekt des Workouts
+                    const workoutData = result; 
+
+                    // Formatiere das JSON für eine lesbare Anzeige im Modal
+                    modalText.textContent = JSON.stringify(workoutData, null, 2);
+
+                    // Zeige eine Erfolgsmeldung mit dem erkannten Workout-Typ an
+                    const successMessage = `Analyse erfolgreich! Typ: ${workoutData.workoutType}`;
+                    showResult(successMessage, 'success');
+                    
+                    openModal(); // Öffne das Modal mit den formatierten Daten
                 } else {
                     showResult(`Fehler: ${result.error}`, 'error');
                 }
